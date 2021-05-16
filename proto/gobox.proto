@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package gobox;
+
+option go_package = "github.com/adrianmester/gobox/proto";
+
+service GoBox {
+    rpc GetLastUpdateTime(Null) returns (GetLastUpdateTimeResult) {}
+    rpc SendFileInfo(SendFileInfoInput) returns (SendFileInfoResponse) {}
+    rpc SendFileChunks(stream SendFileChunksInput) returns (Null) {}
+    rpc SendFileChunksData(stream SendFileChunksDataInput) returns (stream SendFileChunksDataRequest) {}
+}
+
+message GetLastUpdateTimeResult {
+    int64 timestamp = 1;
+}
+
+message SendFileInfoInput {
+    string file_name = 1;
+    int64 file_id = 2;
+    bool is_directory = 3;
+    int64 size = 4;
+    int64 mod_time = 5;
+}
+
+message SendFileInfoResponse {
+    bool send_chunk_ids = 1;
+}
+
+message SendFileChunksInput {
+    ChunkID chunk_id = 1;
+    optional bytes data = 2;
+}
+
+message ChunkID {
+    int64 file_id = 1;
+    int64 chunk_number = 2;
+}
+
+message SendFileChunksDataInput {
+    ChunkID chunk_id = 1;
+    bytes data = 2;
+}
+
+message SendFileChunksDataRequest {
+    bytes chunk_id = 1;
+}
+
+message Null {}
