@@ -114,6 +114,10 @@ func (g *goboxServer) SendFileChunks(stream proto.GoBox_SendFileChunksServer) er
 	)
 	defer func(){
 		log.Debug().Str("path", file.Name).Int64("chunks", chunkCount).Msg("wrote file")
+		err := os.Chtimes(filepath.Join(DataDir, file.Name), file.ModTime, file.ModTime)
+		if err != nil {
+			log.Error().Err(err).Str("path", file.Name).Msg("failed to update mtime")
+		}
 		_ = fp.Close()
 	}()
 	for {
