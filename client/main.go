@@ -56,6 +56,9 @@ func scanDirectory(pm *pathIDMap, dir string) chan FileInfo {
 }
 
 func sendChunksForFile(baseDir string, fInfo FileInfo, client *proto.GoBoxClient) {
+	if fInfo.IsDir() {
+		return
+	}
 	log.Debug().Str("path", fInfo.Path).Msg("sending chunks")
 	cl, err := (*client).SendFileChunks(context.Background())
 	if err != nil {
@@ -63,9 +66,6 @@ func sendChunksForFile(baseDir string, fInfo FileInfo, client *proto.GoBoxClient
 		return
 	}
 	cm := ChunkMap{}
-	if fInfo.IsDir() {
-		return
-	}
 	for chunk := range cm.GetFileChunks(baseDir, fInfo.PathID, fInfo.Path) {
 		err = cl.Send(&proto.SendFileChunksInput{
 			ChunkId: &proto.ChunkID{
@@ -77,6 +77,10 @@ func sendChunksForFile(baseDir string, fInfo FileInfo, client *proto.GoBoxClient
 		if err != nil {
 			log.Error().Err(err).Msg("failed to send chunk")
 		}
+	}
+	err = cl.CloseSend()
+	if err != nil {
+		log.Error().Err(err).Msg("close send")
 	}
 	_, err = cl.CloseAndRecv()
 	if err != nil && err != io.EOF {
@@ -116,7 +120,7 @@ func main() {
 			log.Error().Err(err).Msg("SendFileInfo")
 			continue
 		}
-		if response.SendChunkIds {
+		if response.SendChunkIds && !fInfo.IsDir(){
 			wg.Add(1)
 			go func(fInfo FileInfo) {
 				defer wg.Done()
