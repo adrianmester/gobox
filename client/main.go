@@ -130,6 +130,13 @@ func main() {
 		}
 	}
 	wg.Wait()
+
+	_, err = client.InitialSyncComplete(context.Background(), &proto.Null{})
+	if err != nil {
+		log.Error().Err(err).Msg("InitialSyncComplete")
+	}
+	log.Info().Msg("Initial Sync Complete")
+
 	/*
 	ts, err := client.GetLastUpdateTime(context.Background(), &proto.Null{})
 	if err != nil {

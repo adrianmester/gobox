@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"io"
+	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
@@ -94,7 +95,6 @@ func (g *goboxServer) SendFileInfo(_ context.Context, fileInfo *proto.SendFileIn
 	}
 
 	if fileInfo.IsDirectory {
-		log.Debug().Str("path", fileInfo.FileName).Msg("creating directory")
 		err := os.MkdirAll(filepath.Join(DataDir, fileInfo.FileName), 0755)
 		if err != nil {
 			log.Error().Err(err).Str("path", fileInfo.FileName).Msg("failed to create directory")
@@ -152,4 +152,28 @@ func (g *goboxServer) SendFileChunks(stream proto.GoBox_SendFileChunksServer) er
 		}
 		chunkCount += 1
 	}
+}
+
+func (g *goboxServer) InitialSyncComplete(context.Context, *proto.Null) (*proto.Null, error) {
+	wantedPaths := map[string]bool{}
+	for _, file := range g.Files {
+		wantedPaths[filepath.Join(DataDir, file.Name)] = true
+	}
+	err := filepath.Walk(DataDir, func(path string, info fs.FileInfo, err error) error {
+		path = filepath.Clean(path)
+		if _, ok := wantedPaths[path]; !ok {
+			// this file wasn't one of the ones sent by the client
+			log.Debug().Str("path", path).Msg("file not send by client, deleting")
+			err := os.RemoveAll(path)
+			if err != nil {
+				log.Error().Err(err).Str("path", path).Msg("couldn't delete file")
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("InitialSyncComplete walk")
+	}
+	log.Info().Msg("Initial Sync Complete")
+	return &proto.Null{}, nil
 }

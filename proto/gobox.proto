@@ -9,6 +9,7 @@ service GoBox {
     rpc SendFileInfo(SendFileInfoInput) returns (SendFileInfoResponse) {}
     rpc SendFileChunks(stream SendFileChunksInput) returns (Null) {}
     rpc SendFileChunksData(stream SendFileChunksDataInput) returns (stream SendFileChunksDataRequest) {}
+    rpc InitialSyncComplete(Null) returns (Null) {}
 }
 
 message GetLastUpdateTimeResult {

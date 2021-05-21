@@ -22,6 +22,7 @@ type GoBoxClient interface {
 	SendFileInfo(ctx context.Context, in *SendFileInfoInput, opts ...grpc.CallOption) (*SendFileInfoResponse, error)
 	SendFileChunks(ctx context.Context, opts ...grpc.CallOption) (GoBox_SendFileChunksClient, error)
 	SendFileChunksData(ctx context.Context, opts ...grpc.CallOption) (GoBox_SendFileChunksDataClient, error)
+	InitialSyncComplete(ctx context.Context, in *Null, opts ...grpc.CallOption) (*Null, error)
 }
 
 type goBoxClient struct {
@@ -115,6 +116,15 @@ func (x *goBoxSendFileChunksDataClient) Recv() (*SendFileChunksDataRequest, erro
 	return m, nil
 }
 
+func (c *goBoxClient) InitialSyncComplete(ctx context.Context, in *Null, opts ...grpc.CallOption) (*Null, error) {
+	out := new(Null)
+	err := c.cc.Invoke(ctx, "/gobox.GoBox/InitialSyncComplete", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GoBoxServer is the server API for GoBox service.
 // All implementations must embed UnimplementedGoBoxServer
 // for forward compatibility
@@ -123,6 +133,7 @@ type GoBoxServer interface {
 	SendFileInfo(context.Context, *SendFileInfoInput) (*SendFileInfoResponse, error)
 	SendFileChunks(GoBox_SendFileChunksServer) error
 	SendFileChunksData(GoBox_SendFileChunksDataServer) error
+	InitialSyncComplete(context.Context, *Null) (*Null, error)
 	mustEmbedUnimplementedGoBoxServer()
 }
 
@@ -141,6 +152,9 @@ func (UnimplementedGoBoxServer) SendFileChunks(GoBox_SendFileChunksServer) error
 }
 func (UnimplementedGoBoxServer) SendFileChunksData(GoBox_SendFileChunksDataServer) error {
 	return status.Errorf(codes.Unimplemented, "method SendFileChunksData not implemented")
+}
+func (UnimplementedGoBoxServer) InitialSyncComplete(context.Context, *Null) (*Null, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InitialSyncComplete not implemented")
 }
 func (UnimplementedGoBoxServer) mustEmbedUnimplementedGoBoxServer() {}
 
@@ -243,6 +257,24 @@ func (x *goBoxSendFileChunksDataServer) Recv() (*SendFileChunksDataInput, error)
 	return m, nil
 }
 
+func _GoBox_InitialSyncComplete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Null)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoBoxServer).InitialSyncComplete(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gobox.GoBox/InitialSyncComplete",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoBoxServer).InitialSyncComplete(ctx, req.(*Null))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GoBox_ServiceDesc is the grpc.ServiceDesc for GoBox service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -257,6 +289,10 @@ var GoBox_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendFileInfo",
 			Handler:    _GoBox_SendFileInfo_Handler,
+		},
+		{
+			MethodName: "InitialSyncComplete",
+			Handler:    _GoBox_InitialSyncComplete_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
