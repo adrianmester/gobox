@@ -3,20 +3,20 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
+	"github.com/adrianmester/gobox/pkgs/logging"
 	"github.com/adrianmester/gobox/proto"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"io"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
 )
 
 type FileInfo struct {
-	Path string
+	Path   string
 	PathID int64
 	fs.FileInfo
 }
@@ -29,7 +29,7 @@ func NewFileInfo(fileID int64, path string, info fs.FileInfo) FileInfo {
 	}
 }
 
-func scanDirectory(pm *pathIDMap, dir string) chan FileInfo {
+func scanDirectory(log zerolog.Logger, pm *pathIDMap, dir string) chan FileInfo {
 	dir = filepath.Clean(dir)
 	log.Info().Str("path", dir).Msgf("scanning directory")
 	result := make(chan FileInfo)
@@ -56,7 +56,7 @@ func scanDirectory(pm *pathIDMap, dir string) chan FileInfo {
 	return result
 }
 
-func sendChunksForFile(baseDir string, fInfo FileInfo, client *proto.GoBoxClient) {
+func sendChunksForFile(log zerolog.Logger, baseDir string, fInfo FileInfo, client *proto.GoBoxClient) {
 	if fInfo.IsDir() {
 		return
 	}
@@ -71,7 +71,7 @@ func sendChunksForFile(baseDir string, fInfo FileInfo, client *proto.GoBoxClient
 		err = cl.Send(&proto.SendFileChunksInput{
 			ChunkId: &proto.ChunkID{
 				ChunkNumber: chunk.ChunkNumber,
-				FileId: chunk.FileID,
+				FileId:      chunk.FileID,
 			},
 			Data: chunk.Data,
 		})
@@ -91,16 +91,20 @@ func sendChunksForFile(baseDir string, fInfo FileInfo, client *proto.GoBoxClient
 }
 
 func main() {
-	log.Logger = log.With().Str("component", "client").Logger().Output(zerolog.ConsoleWriter{Out: os.Stdout})
+	ctx, cancelMainContext := context.WithCancel(context.Background())
 	var (
 		serverAddress string
-		dataDir string
-		help bool
+		dataDir       string
+		help          bool
+		debug         bool
 	)
 	flag.StringVar(&serverAddress, "server", "localhost:5555", "server address to connect to (<host>:<port>)")
 	flag.StringVar(&dataDir, "datadir", "./datadir/client", "path to sync to remote server")
 	flag.BoolVar(&help, "help", false, "show usage information")
+	flag.BoolVar(&debug, "debug", false, "enable debug logging")
 	flag.Parse()
+
+	log := logging.GetLogger("client", debug)
 
 	pm := NewPathIDMap()
 
@@ -115,47 +119,53 @@ func main() {
 	client := proto.NewGoBoxClient(conn)
 	wg := sync.WaitGroup{}
 
-	for fInfo := range scanDirectory(pm, dataDir) {
+	for fInfo := range scanDirectory(log, pm, dataDir) {
 		log.Debug().Str("path", fInfo.Path).Msg("sending file info")
-		response, err := client.SendFileInfo(context.Background(), &proto.SendFileInfoInput{
-			FileId: fInfo.PathID,
-			FileName: fInfo.Path,
+		response, err := client.SendFileInfo(ctx, &proto.SendFileInfoInput{
+			FileId:      fInfo.PathID,
+			FileName:    fInfo.Path,
 			IsDirectory: fInfo.IsDir(),
-			Size: fInfo.Size(),
-			ModTime: fInfo.ModTime().Unix(),
+			Size:        fInfo.Size(),
+			ModTime:     fInfo.ModTime().Unix(),
 		})
 		if err != nil {
 			log.Error().Err(err).Msg("SendFileInfo")
 			continue
 		}
-		if response.SendChunkIds && !fInfo.IsDir(){
+		if response.SendChunkIds && !fInfo.IsDir() {
 			wg.Add(1)
 			go func(fInfo FileInfo) {
 				defer wg.Done()
 				time.Sleep(time.Second)
-				sendChunksForFile(dataDir, fInfo, &client)
+				sendChunksForFile(log, dataDir, fInfo, &client)
 			}(fInfo)
 		}
 	}
 	wg.Wait()
 
-	_, err = client.InitialSyncComplete(context.Background(), &proto.Null{})
+	_, err = client.InitialSyncComplete(ctx, &proto.Null{})
 	if err != nil {
 		log.Error().Err(err).Msg("InitialSyncComplete")
 	}
 	log.Info().Msg("Initial Sync Complete")
-
-	time.Sleep(time.Minute)
-	/*
-	ts, err := client.GetLastUpdateTime(context.Background(), &proto.Null{})
+	fileChangesChan, err := watch(log, ctx, dataDir)
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Error().Err(err).Msg("file watcher error")
 	}
-	fmt.Println(ts.Timestamp)
+	for fileChange := range fileChangesChan {
+		fmt.Println(fileChange)
+	}
+	cancelMainContext()
+	/*
+		ts, err := client.GetLastUpdateTime(context.Background(), &proto.Null{})
+		if err != nil {
+			log.Fatal().Err(err)
+		}
+		fmt.Println(ts.Timestamp)
 
-	client.SendFileInfo(context.Background(), &proto.SendFileInfoInput{
-		FileName: "foo",
-		FileId: 123,
-	})
+		client.SendFileInfo(context.Background(), &proto.SendFileInfoInput{
+			FileName: "foo",
+			FileId: 123,
+		})
 	*/
 }
