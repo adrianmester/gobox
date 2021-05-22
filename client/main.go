@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"github.com/adrianmester/gobox/proto"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -90,13 +91,21 @@ func sendChunksForFile(baseDir string, fInfo FileInfo, client *proto.GoBoxClient
 }
 
 func main() {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
+	log.Logger = log.With().Str("component", "client").Logger().Output(zerolog.ConsoleWriter{Out: os.Stdout})
+	var (
+		serverAddress string
+		dataDir string
+		help bool
+	)
+	flag.StringVar(&serverAddress, "server", "localhost:5555", "server address to connect to (<host>:<port>)")
+	flag.StringVar(&dataDir, "datadir", "./datadir/client", "path to sync to remote server")
+	flag.BoolVar(&help, "help", false, "show usage information")
+	flag.Parse()
 
 	pm := NewPathIDMap()
 
-
 	opts := []grpc.DialOption{grpc.WithInsecure()}
-	conn, err := grpc.Dial("localhost:5555", opts...)
+	conn, err := grpc.Dial(serverAddress, opts...)
 	if err != nil {
 		log.Fatal().Err(err)
 	}
@@ -106,7 +115,6 @@ func main() {
 	client := proto.NewGoBoxClient(conn)
 	wg := sync.WaitGroup{}
 
-	dataDir := "./datadir/client"
 	for fInfo := range scanDirectory(pm, dataDir) {
 		log.Debug().Str("path", fInfo.Path).Msg("sending file info")
 		response, err := client.SendFileInfo(context.Background(), &proto.SendFileInfoInput{
@@ -137,6 +145,7 @@ func main() {
 	}
 	log.Info().Msg("Initial Sync Complete")
 
+	time.Sleep(time.Minute)
 	/*
 	ts, err := client.GetLastUpdateTime(context.Background(), &proto.Null{})
 	if err != nil {

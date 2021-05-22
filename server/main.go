@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"github.com/adrianmester/gobox/proto"
 	"github.com/rs/zerolog"
@@ -16,16 +17,34 @@ import (
 )
 
 func main() {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
+	log.Logger = log.With().Str("component", "server").Logger().Output(zerolog.ConsoleWriter{Out: os.Stdout})
+
+	var (
+		listenAddress string
+		dataDir string
+		help bool
+	)
+	flag.StringVar(&listenAddress, "listen", "localhost:5555", "address to listen on (<host>:<port>)")
+	flag.StringVar(&dataDir, "datadir", "./datadir/server", "path to directory to store files")
+	flag.BoolVar(&help, "help", false, "show usage information")
+	flag.Parse()
+	if help {
+		flag.Usage()
+		return
+	}
 
 	lis, err := net.Listen("tcp", "localhost:5555")
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Fatal().Err(err).Msg("Failed to start server")
 	}
 	opts := []grpc.ServerOption{}
 	grpcServer := grpc.NewServer(opts...)
-	proto.RegisterGoBoxServer(grpcServer, NewGoBoxServer())
-	grpcServer.Serve(lis)
+	proto.RegisterGoBoxServer(grpcServer, NewGoBoxServer(dataDir))
+	log.Info().Str("address", listenAddress).Str("datadir", dataDir).Msg("Starting server")
+	err = grpcServer.Serve(lis)
+	if err != nil {
+		log.Error().Err(err).Msg("Server error")
+	}
 }
 
 type File struct {
@@ -38,11 +57,13 @@ type File struct {
 type goboxServer struct {
 	proto.UnimplementedGoBoxServer
 
+	dataDir string
 	Files map[int64]File
 }
-func NewGoBoxServer() *goboxServer {
+func NewGoBoxServer(dataDir string) *goboxServer {
 	return &goboxServer{
 		Files: map[int64]File{},
+		dataDir: dataDir,
 	}
 }
 
@@ -54,11 +75,9 @@ func (g *goboxServer) GetLastUpdateTime(_ context.Context, _ *proto.Null) (*prot
 	return &result, nil
 }
 
-const DataDir="./datadir/server"
-
 func (g *goboxServer) FileNeedsUpdate(fileID int64) bool{
 	file := g.Files[fileID]
-	fullPath := filepath.Join(DataDir, file.Name)
+	fullPath := filepath.Join(g.dataDir, file.Name)
 	fInfo, err := os.Stat(fullPath)
 	if err != nil {
 		// file doesn't exist
@@ -95,7 +114,7 @@ func (g *goboxServer) SendFileInfo(_ context.Context, fileInfo *proto.SendFileIn
 	}
 
 	if fileInfo.IsDirectory {
-		err := os.MkdirAll(filepath.Join(DataDir, fileInfo.FileName), 0755)
+		err := os.MkdirAll(filepath.Join(g.dataDir, fileInfo.FileName), 0755)
 		if err != nil {
 			log.Error().Err(err).Str("path", fileInfo.FileName).Msg("failed to create directory")
 		}
@@ -114,7 +133,7 @@ func (g *goboxServer) SendFileChunks(stream proto.GoBox_SendFileChunksServer) er
 	)
 	defer func(){
 		log.Debug().Str("path", file.Name).Int64("chunks", chunkCount).Msg("wrote file")
-		err := os.Chtimes(filepath.Join(DataDir, file.Name), file.ModTime, file.ModTime)
+		err := os.Chtimes(filepath.Join(g.dataDir, file.Name), file.ModTime, file.ModTime)
 		if err != nil {
 			log.Error().Err(err).Str("path", file.Name).Msg("failed to update mtime")
 		}
@@ -138,7 +157,7 @@ func (g *goboxServer) SendFileChunks(stream proto.GoBox_SendFileChunksServer) er
 			// this is the first chunk, we need to do some initialisations
 			fileID = chunk.ChunkId.FileId
 			file = g.Files[fileID]
-			fp, err = os.Create(filepath.Join(DataDir, file.Name))
+			fp, err = os.Create(filepath.Join(g.dataDir, file.Name))
 			if err != nil {
 				return fmt.Errorf("failed to create file %s: %w", file.Name, err)
 			}
@@ -157,9 +176,9 @@ func (g *goboxServer) SendFileChunks(stream proto.GoBox_SendFileChunksServer) er
 func (g *goboxServer) InitialSyncComplete(context.Context, *proto.Null) (*proto.Null, error) {
 	wantedPaths := map[string]bool{}
 	for _, file := range g.Files {
-		wantedPaths[filepath.Join(DataDir, file.Name)] = true
+		wantedPaths[filepath.Join(g.dataDir, file.Name)] = true
 	}
-	err := filepath.Walk(DataDir, func(path string, info fs.FileInfo, err error) error {
+	err := filepath.Walk(g.dataDir, func(path string, info fs.FileInfo, err error) error {
 		path = filepath.Clean(path)
 		if _, ok := wantedPaths[path]; !ok {
 			// this file wasn't one of the ones sent by the client
