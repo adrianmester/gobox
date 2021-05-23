@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"github.com/adrianmester/gobox/pkgs/logging"
 	"github.com/adrianmester/gobox/proto"
 	"github.com/rs/zerolog"
