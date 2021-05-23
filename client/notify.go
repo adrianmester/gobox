@@ -27,10 +27,10 @@ func listDirectories(path string) ([]string, error) {
 	return result, nil
 }
 
-func watch(log zerolog.Logger, ctx context.Context, path string) (chan string, error) {
+func watch(log zerolog.Logger, ctx context.Context, rootPath string) (chan string, error) {
 	result := make(chan string)
 
-	watchedDirectories, err := listDirectories(path)
+	watchedDirectories, err := listDirectories(rootPath)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to list directories to watch")
 		return result, err
@@ -49,8 +49,12 @@ func watch(log zerolog.Logger, ctx context.Context, path string) (chan string, e
 				if !ok {
 					continue
 				}
-				log.Debug().Str("event", event.Op.String()).Str("path", event.Name).Msg("received event")
-				result <- event.Name
+				log.Debug().Str("event", event.Op.String()).Str("rootPath", event.Name).Msg("received event")
+				path, err := filepath.Rel(rootPath, event.Name)
+				if err != nil {
+					continue
+				}
+				result <- path
 				lstat, err := os.Lstat(event.Name)
 				if err != nil {
 					continue
@@ -79,7 +83,7 @@ func watch(log zerolog.Logger, ctx context.Context, path string) (chan string, e
 	for _, dir := range watchedDirectories {
 		err = watcher.Add(dir)
 		if err != nil {
-			log.Error().Err(err).Str("path", dir).Msg("couldn't add path")
+			log.Error().Err(err).Str("rootPath", dir).Msg("couldn't add rootPath")
 		}
 	}
 	return result, nil

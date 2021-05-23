@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -30,7 +31,7 @@ func main() {
 		flag.Usage()
 		return
 	}
-	log := logging.GetLogger("client", debug)
+	log := logging.GetLogger("server", debug)
 
 	lis, err := net.Listen("tcp", "localhost:5555")
 	if err != nil {
@@ -59,6 +60,7 @@ type goboxServer struct {
 	log     *zerolog.Logger
 	dataDir string
 	Files   map[int64]File
+	lock    *sync.Mutex
 }
 
 func NewGoBoxServer(log *zerolog.Logger, dataDir string) *goboxServer {
@@ -66,6 +68,7 @@ func NewGoBoxServer(log *zerolog.Logger, dataDir string) *goboxServer {
 		Files:   map[int64]File{},
 		dataDir: dataDir,
 		log:     log,
+		lock:    &sync.Mutex{},
 	}
 }
 
@@ -78,7 +81,9 @@ func (g *goboxServer) GetLastUpdateTime(_ context.Context, _ *proto.Null) (*prot
 }
 
 func (g *goboxServer) DoesFileNeedUpdate(fileID int64) bool {
+	g.lock.Lock()
 	file := g.Files[fileID]
+	g.lock.Unlock()
 	fullPath := filepath.Join(g.dataDir, file.Name)
 	fInfo, err := os.Stat(fullPath)
 	if err != nil {

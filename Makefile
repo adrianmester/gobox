@@ -1,7 +1,3 @@
-# export CLIENT_CMD='python3 -c "import test_homework as th; th.client()" -- dist/client --datadir /tmp/dropbox/client'
-# export SERVER_CMD='python3 -c "import test_homework as th; th.server()" -- dist/server --datadir /tmp/dropbox/server'
-# export CLIENT_CMD='python3 -c "import test_homework as th; th.client()" -- ls'
-# export SERVER_CMD='python3 -c "import test_homework as th; th.server()" -- ls ~'
 export CLIENT_CMD='./dist/client --datadir /tmp/dropbox/client'
 export SERVER_CMD='./dist/server --datadir /tmp/dropbox/server'
 
@@ -20,11 +16,12 @@ proto:
 	    --go-grpc_out=. --go-grpc_opt=paths=source_relative \
 	    proto/gobox.proto
 
-test: build
+test:
 	rm -rf /tmp/dropbox
 	mkdir -p /tmp/dropbox/client /tmp/dropbox/server
-	#pytest -vv -s .
-	pytest -vv -s . -k 'test_add_single_file'
-
+	pytest -vv -s .
+	#pytest -q -rapP # silent, with summary
+	#pytest -vv -s . -k 'test_many_small_files'
+	#pytest -vv -s . -k 'test_file_to_empty_dirs_and_back'
 
 

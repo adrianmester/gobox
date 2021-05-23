@@ -10,6 +10,7 @@ service GoBox {
     rpc SendFileChunks(stream SendFileChunksInput) returns (Null) {}
     rpc SendFileChunksData(stream SendFileChunksDataInput) returns (stream SendFileChunksDataRequest) {}
     rpc InitialSyncComplete(Null) returns (Null) {}
+    rpc DeleteFile(DeleteFileInput) returns (Null) {}
 }
 
 message GetLastUpdateTimeResult {
@@ -45,6 +46,10 @@ message SendFileChunksDataInput {
 
 message SendFileChunksDataRequest {
     bytes chunk_id = 1;
+}
+
+message DeleteFileInput {
+    string path = 1;
 }
 
 message Null {}

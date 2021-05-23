@@ -23,6 +23,7 @@ type GoBoxClient interface {
 	SendFileChunks(ctx context.Context, opts ...grpc.CallOption) (GoBox_SendFileChunksClient, error)
 	SendFileChunksData(ctx context.Context, opts ...grpc.CallOption) (GoBox_SendFileChunksDataClient, error)
 	InitialSyncComplete(ctx context.Context, in *Null, opts ...grpc.CallOption) (*Null, error)
+	DeleteFile(ctx context.Context, in *DeleteFileInput, opts ...grpc.CallOption) (*Null, error)
 }
 
 type goBoxClient struct {
@@ -125,6 +126,15 @@ func (c *goBoxClient) InitialSyncComplete(ctx context.Context, in *Null, opts ..
 	return out, nil
 }
 
+func (c *goBoxClient) DeleteFile(ctx context.Context, in *DeleteFileInput, opts ...grpc.CallOption) (*Null, error) {
+	out := new(Null)
+	err := c.cc.Invoke(ctx, "/gobox.GoBox/DeleteFile", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GoBoxServer is the server API for GoBox service.
 // All implementations must embed UnimplementedGoBoxServer
 // for forward compatibility
@@ -134,6 +144,7 @@ type GoBoxServer interface {
 	SendFileChunks(GoBox_SendFileChunksServer) error
 	SendFileChunksData(GoBox_SendFileChunksDataServer) error
 	InitialSyncComplete(context.Context, *Null) (*Null, error)
+	DeleteFile(context.Context, *DeleteFileInput) (*Null, error)
 	mustEmbedUnimplementedGoBoxServer()
 }
 
@@ -155,6 +166,9 @@ func (UnimplementedGoBoxServer) SendFileChunksData(GoBox_SendFileChunksDataServe
 }
 func (UnimplementedGoBoxServer) InitialSyncComplete(context.Context, *Null) (*Null, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InitialSyncComplete not implemented")
+}
+func (UnimplementedGoBoxServer) DeleteFile(context.Context, *DeleteFileInput) (*Null, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteFile not implemented")
 }
 func (UnimplementedGoBoxServer) mustEmbedUnimplementedGoBoxServer() {}
 
@@ -275,6 +289,24 @@ func _GoBox_InitialSyncComplete_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GoBox_DeleteFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteFileInput)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoBoxServer).DeleteFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gobox.GoBox/DeleteFile",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoBoxServer).DeleteFile(ctx, req.(*DeleteFileInput))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GoBox_ServiceDesc is the grpc.ServiceDesc for GoBox service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -293,6 +325,10 @@ var GoBox_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InitialSyncComplete",
 			Handler:    _GoBox_InitialSyncComplete_Handler,
+		},
+		{
+			MethodName: "DeleteFile",
+			Handler:    _GoBox_DeleteFile_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

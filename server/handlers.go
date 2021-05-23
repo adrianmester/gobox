@@ -12,19 +12,39 @@ import (
 )
 
 func (g *goboxServer) SendFileInfo(_ context.Context, fileInfo *proto.SendFileInfoInput) (*proto.SendFileInfoResponse, error) {
+	g.lock.Lock()
 	g.Files[fileInfo.FileId] = File{
 		Name:        fileInfo.FileName,
 		IsDirectory: fileInfo.IsDirectory,
 		ModTime:     time.Unix(fileInfo.ModTime, 0),
 		Size:        fileInfo.Size,
 	}
+	g.lock.Unlock()
 
+	fullPath := filepath.Join(g.dataDir, fileInfo.FileName)
 	if fileInfo.IsDirectory {
-		err := os.MkdirAll(filepath.Join(g.dataDir, fileInfo.FileName), 0755)
+		stat, err := os.Lstat(fullPath)
+		if err == nil && !stat.IsDir() {
+			// the path exists, but it's a file, we'll need to remove it first
+			err = os.RemoveAll(fullPath)
+			if err != nil {
+				g.log.Error().Err(err).Str("path", fileInfo.FileName).Msg("failed to remove file")
+			}
+		}
+		err = os.MkdirAll(fullPath, 0755)
 		if err != nil {
 			g.log.Error().Err(err).Str("path", fileInfo.FileName).Msg("failed to create directory")
 		}
 		return &proto.SendFileInfoResponse{SendChunkIds: false}, nil
+	} else {
+		stat, err := os.Lstat(fullPath)
+		if err == nil && stat.IsDir() {
+			// the path exists, but it's a directory not a file, we'll need to remove it first
+			err = os.RemoveAll(fullPath)
+			if err != nil {
+				g.log.Error().Err(err).Str("path", fileInfo.FileName).Msg("failed to remove directory")
+			}
+		}
 	}
 
 	return &proto.SendFileInfoResponse{SendChunkIds: g.DoesFileNeedUpdate(fileInfo.FileId)}, nil
@@ -62,7 +82,9 @@ func (g *goboxServer) SendFileChunks(stream proto.GoBox_SendFileChunksServer) er
 		if fileID == -1 {
 			// this is the first chunk, we need to do some initialisations
 			fileID = chunk.ChunkId.FileId
+			g.lock.Lock()
 			file = g.Files[fileID]
+			g.lock.Unlock()
 			fp, err = os.Create(filepath.Join(g.dataDir, file.Name))
 			if err != nil {
 				return fmt.Errorf("failed to create file %s: %w", file.Name, err)
@@ -80,9 +102,11 @@ func (g *goboxServer) SendFileChunks(stream proto.GoBox_SendFileChunksServer) er
 
 func (g *goboxServer) InitialSyncComplete(context.Context, *proto.Null) (*proto.Null, error) {
 	wantedPaths := map[string]bool{}
+	g.lock.Lock()
 	for _, file := range g.Files {
 		wantedPaths[filepath.Join(g.dataDir, file.Name)] = true
 	}
+	g.lock.Unlock()
 	err := filepath.Walk(g.dataDir, func(path string, info fs.FileInfo, err error) error {
 		path = filepath.Clean(path)
 		if _, ok := wantedPaths[path]; !ok {
@@ -100,4 +124,8 @@ func (g *goboxServer) InitialSyncComplete(context.Context, *proto.Null) (*proto.
 	}
 	g.log.Info().Msg("Initial Sync Complete")
 	return &proto.Null{}, nil
+}
+func (g *goboxServer) DeleteFile(ctx context.Context, in *proto.DeleteFileInput) (*proto.Null, error) {
+	err := os.RemoveAll(filepath.Join(g.dataDir, in.Path))
+	return &proto.Null{}, err
 }

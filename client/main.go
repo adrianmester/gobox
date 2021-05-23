@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"io"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sync"
 )
@@ -67,7 +68,6 @@ func sendChunksForFile(log zerolog.Logger, baseDir string, fInfo FileInfo, clien
 	}
 	cm := ChunkMap{}
 	for chunk := range cm.GetFileChunks(baseDir, fInfo.PathID, fInfo.Path) {
-		fmt.Println(chunk.FileID)
 		err = cl.Send(&proto.SendFileChunksInput{
 			ChunkId: &proto.ChunkID{
 				ChunkNumber: chunk.ChunkNumber,
@@ -100,7 +100,8 @@ func updatePath(ctx context.Context, log zerolog.Logger, client *proto.GoBoxClie
 		ModTime:     fInfo.ModTime().Unix(),
 	})
 	if err != nil {
-		log.Error().Err(err).Msg("SendFileInfo")
+		// TODO:
+		log.Panic().Err(err).Msg("SendFileInfo")
 		return
 	}
 	if response.SendChunkIds && !fInfo.IsDir() {
@@ -156,20 +157,21 @@ func main() {
 	if err != nil {
 		log.Error().Err(err).Msg("file watcher error")
 	}
-	for fileChange := range fileChangesChan {
-		fmt.Println(fileChange)
+	for fileChanged := range fileChangesChan {
+		fileID := pm.GetID(fileChanged)
+		fInfo, err := os.Lstat(filepath.Join(dataDir, fileChanged))
+		if err != nil {
+			log.Debug().Str("path", fileChanged).Msg("deleting file")
+			_, err := client.DeleteFile(ctx, &proto.DeleteFileInput{
+				Path: fileChanged,
+			})
+			if err != nil {
+				//TODO:
+				log.Panic().Err(err).Str("path", fileChanged).Msg("couldn't delete remote file")
+			}
+			continue
+		}
+		updatePath(ctx, log, &client, &wg, dataDir, NewFileInfo(fileID, fileChanged, fInfo))
 	}
 	cancelMainContext()
-	/*
-		ts, err := client.GetLastUpdateTime(context.Background(), &proto.Null{})
-		if err != nil {
-			log.Fatal().Err(err)
-		}
-		fmt.Println(ts.Timestamp)
-
-		client.SendFileInfo(context.Background(), &proto.SendFileInfoInput{
-			FileName: "foo",
-			FileId: 123,
-		})
-	*/
 }
