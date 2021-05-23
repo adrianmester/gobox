@@ -7,6 +7,9 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
 
+    - name: install pytest
+      run: pip3 install --user pytest
+
     - name: Set up Go 1.16.4
       uses: actions/setup-go@v1
       with:
@@ -15,7 +18,9 @@ jobs:
 
     - uses: actions/cache@v2
       with:
-        path: ~/go/pkg/mod
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/pip
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
