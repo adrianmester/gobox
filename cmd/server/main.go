@@ -1,17 +1,11 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"github.com/adrianmester/gobox/pkgs/logging"
 	"github.com/adrianmester/gobox/proto"
-	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"net"
-	"os"
-	"path/filepath"
-	"sync"
-	"time"
 )
 
 func main() {
@@ -46,69 +40,3 @@ func main() {
 		log.Error().Err(err).Msg("Server error")
 	}
 }
-
-type File struct {
-	Name        string
-	IsDirectory bool
-	ModTime     time.Time
-	Size        int64
-}
-
-type goboxServer struct {
-	proto.UnimplementedGoBoxServer
-
-	log     *zerolog.Logger
-	dataDir string
-	Files   map[int64]File
-	lock    *sync.Mutex
-}
-
-func NewGoBoxServer(log *zerolog.Logger, dataDir string) *goboxServer {
-	return &goboxServer{
-		Files:   map[int64]File{},
-		dataDir: dataDir,
-		log:     log,
-		lock:    &sync.Mutex{},
-	}
-}
-
-func (g *goboxServer) GetLastUpdateTime(_ context.Context, _ *proto.Null) (*proto.GetLastUpdateTimeResult, error) {
-	result := proto.GetLastUpdateTimeResult{
-		//TODO:
-		Timestamp: time.Now().Unix(),
-	}
-	return &result, nil
-}
-
-func (g *goboxServer) DoesFileNeedUpdate(fileID int64) bool {
-	g.lock.Lock()
-	file := g.Files[fileID]
-	g.lock.Unlock()
-	fullPath := filepath.Join(g.dataDir, file.Name)
-	fInfo, err := os.Stat(fullPath)
-	if err != nil {
-		// file doesn't exist
-		g.log.Debug().Str("path", file.Name).
-			Int64("fileID", fileID).
-			Msg("file doesn't exist")
-		return true
-	}
-	if fInfo.Size() != file.Size {
-		g.log.Debug().Str("path", file.Name).
-			Int64("fileID", fileID).
-			Int64("expected size", file.Size).
-			Int64("actual size", fInfo.Size()).
-			Msg("file size doesn't match")
-		return true
-	}
-	if fInfo.ModTime() != file.ModTime {
-		g.log.Debug().Str("path", file.Name).
-			Int64("fileID", fileID).
-			Time("expected mtime", file.ModTime).
-			Time("actual mtime", fInfo.ModTime()).
-			Msg("file mtime doesn't match")
-		return true
-	}
-	return false
-}
-

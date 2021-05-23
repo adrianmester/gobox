@@ -4,12 +4,71 @@ import (
 	"context"
 	"fmt"
 	"github.com/adrianmester/gobox/proto"
+	"github.com/rs/zerolog"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
+
+type File struct {
+	Name        string
+	IsDirectory bool
+	ModTime     time.Time
+	Size        int64
+}
+
+type goboxServer struct {
+	proto.UnimplementedGoBoxServer
+
+	log     *zerolog.Logger
+	dataDir string
+	Files   map[int64]File
+	lock    *sync.Mutex
+}
+
+func NewGoBoxServer(log *zerolog.Logger, dataDir string) *goboxServer {
+	return &goboxServer{
+		Files:   map[int64]File{},
+		dataDir: dataDir,
+		log:     log,
+		lock:    &sync.Mutex{},
+	}
+}
+
+func (g *goboxServer) DoesFileNeedUpdate(fileID int64) bool {
+	g.lock.Lock()
+	file := g.Files[fileID]
+	g.lock.Unlock()
+	fullPath := filepath.Join(g.dataDir, file.Name)
+	fInfo, err := os.Stat(fullPath)
+	if err != nil {
+		// file doesn't exist
+		g.log.Debug().Str("path", file.Name).
+			Int64("fileID", fileID).
+			Msg("file doesn't exist")
+		return true
+	}
+	if fInfo.Size() != file.Size {
+		g.log.Debug().Str("path", file.Name).
+			Int64("fileID", fileID).
+			Int64("expected size", file.Size).
+			Int64("actual size", fInfo.Size()).
+			Msg("file size doesn't match")
+		return true
+	}
+	if fInfo.ModTime() != file.ModTime {
+		g.log.Debug().Str("path", file.Name).
+			Int64("fileID", fileID).
+			Time("expected mtime", file.ModTime).
+			Time("actual mtime", fInfo.ModTime()).
+			Msg("file mtime doesn't match")
+		return true
+	}
+	return false
+}
 
 func (g *goboxServer) SendFileInfo(_ context.Context, fileInfo *proto.SendFileInfoInput) (*proto.SendFileInfoResponse, error) {
 	g.lock.Lock()
@@ -50,7 +109,8 @@ func (g *goboxServer) SendFileInfo(_ context.Context, fileInfo *proto.SendFileIn
 	return &proto.SendFileInfoResponse{SendChunkIds: g.DoesFileNeedUpdate(fileInfo.FileId)}, nil
 }
 
-func (g *goboxServer) SendFileChunks(stream proto.GoBox_SendFileChunksServer) error {
+
+func (g *goboxServer) SendFileChunks(server proto.GoBox_SendFileChunksServer) error {
 	var (
 		chunkCount int64
 		fileID     int64 = -1
@@ -66,7 +126,7 @@ func (g *goboxServer) SendFileChunks(stream proto.GoBox_SendFileChunksServer) er
 		_ = fp.Close()
 	}()
 	for {
-		chunk, err := stream.Recv()
+		chunk, err := server.Recv()
 		if err == io.EOF {
 			g.log.Debug().
 				Int64("chunks", chunkCount).
@@ -100,7 +160,7 @@ func (g *goboxServer) SendFileChunks(stream proto.GoBox_SendFileChunksServer) er
 	}
 }
 
-func (g *goboxServer) InitialSyncComplete(context.Context, *proto.Null) (*proto.Null, error) {
+func (g *goboxServer) InitialSyncComplete(_ context.Context, _ *proto.Null) (*proto.Null, error) {
 	wantedPaths := map[string]bool{}
 	g.lock.Lock()
 	for _, file := range g.Files {
@@ -125,7 +185,7 @@ func (g *goboxServer) InitialSyncComplete(context.Context, *proto.Null) (*proto.
 	g.log.Info().Msg("Initial Sync Complete")
 	return &proto.Null{}, nil
 }
-func (g *goboxServer) DeleteFile(ctx context.Context, in *proto.DeleteFileInput) (*proto.Null, error) {
+func (g *goboxServer) DeleteFile(_ context.Context, in *proto.DeleteFileInput) (*proto.Null, error) {
 	err := os.RemoveAll(filepath.Join(g.dataDir, in.Path))
 	return &proto.Null{}, err
 }

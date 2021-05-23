@@ -18,10 +18,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type GoBoxClient interface {
-	GetLastUpdateTime(ctx context.Context, in *Null, opts ...grpc.CallOption) (*GetLastUpdateTimeResult, error)
 	SendFileInfo(ctx context.Context, in *SendFileInfoInput, opts ...grpc.CallOption) (*SendFileInfoResponse, error)
 	SendFileChunks(ctx context.Context, opts ...grpc.CallOption) (GoBox_SendFileChunksClient, error)
-	SendFileChunksData(ctx context.Context, opts ...grpc.CallOption) (GoBox_SendFileChunksDataClient, error)
 	InitialSyncComplete(ctx context.Context, in *Null, opts ...grpc.CallOption) (*Null, error)
 	DeleteFile(ctx context.Context, in *DeleteFileInput, opts ...grpc.CallOption) (*Null, error)
 }
@@ -32,15 +30,6 @@ type goBoxClient struct {
 
 func NewGoBoxClient(cc grpc.ClientConnInterface) GoBoxClient {
 	return &goBoxClient{cc}
-}
-
-func (c *goBoxClient) GetLastUpdateTime(ctx context.Context, in *Null, opts ...grpc.CallOption) (*GetLastUpdateTimeResult, error) {
-	out := new(GetLastUpdateTimeResult)
-	err := c.cc.Invoke(ctx, "/gobox.GoBox/GetLastUpdateTime", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *goBoxClient) SendFileInfo(ctx context.Context, in *SendFileInfoInput, opts ...grpc.CallOption) (*SendFileInfoResponse, error) {
@@ -63,7 +52,7 @@ func (c *goBoxClient) SendFileChunks(ctx context.Context, opts ...grpc.CallOptio
 
 type GoBox_SendFileChunksClient interface {
 	Send(*SendFileChunksInput) error
-	CloseAndRecv() (*Null, error)
+	Recv() (*SendFileChunksResponse, error)
 	grpc.ClientStream
 }
 
@@ -75,42 +64,8 @@ func (x *goBoxSendFileChunksClient) Send(m *SendFileChunksInput) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *goBoxSendFileChunksClient) CloseAndRecv() (*Null, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	m := new(Null)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *goBoxClient) SendFileChunksData(ctx context.Context, opts ...grpc.CallOption) (GoBox_SendFileChunksDataClient, error) {
-	stream, err := c.cc.NewStream(ctx, &GoBox_ServiceDesc.Streams[1], "/gobox.GoBox/SendFileChunksData", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &goBoxSendFileChunksDataClient{stream}
-	return x, nil
-}
-
-type GoBox_SendFileChunksDataClient interface {
-	Send(*SendFileChunksDataInput) error
-	Recv() (*SendFileChunksDataRequest, error)
-	grpc.ClientStream
-}
-
-type goBoxSendFileChunksDataClient struct {
-	grpc.ClientStream
-}
-
-func (x *goBoxSendFileChunksDataClient) Send(m *SendFileChunksDataInput) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *goBoxSendFileChunksDataClient) Recv() (*SendFileChunksDataRequest, error) {
-	m := new(SendFileChunksDataRequest)
+func (x *goBoxSendFileChunksClient) Recv() (*SendFileChunksResponse, error) {
+	m := new(SendFileChunksResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -139,10 +94,8 @@ func (c *goBoxClient) DeleteFile(ctx context.Context, in *DeleteFileInput, opts 
 // All implementations must embed UnimplementedGoBoxServer
 // for forward compatibility
 type GoBoxServer interface {
-	GetLastUpdateTime(context.Context, *Null) (*GetLastUpdateTimeResult, error)
 	SendFileInfo(context.Context, *SendFileInfoInput) (*SendFileInfoResponse, error)
 	SendFileChunks(GoBox_SendFileChunksServer) error
-	SendFileChunksData(GoBox_SendFileChunksDataServer) error
 	InitialSyncComplete(context.Context, *Null) (*Null, error)
 	DeleteFile(context.Context, *DeleteFileInput) (*Null, error)
 	mustEmbedUnimplementedGoBoxServer()
@@ -152,17 +105,11 @@ type GoBoxServer interface {
 type UnimplementedGoBoxServer struct {
 }
 
-func (UnimplementedGoBoxServer) GetLastUpdateTime(context.Context, *Null) (*GetLastUpdateTimeResult, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetLastUpdateTime not implemented")
-}
 func (UnimplementedGoBoxServer) SendFileInfo(context.Context, *SendFileInfoInput) (*SendFileInfoResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendFileInfo not implemented")
 }
 func (UnimplementedGoBoxServer) SendFileChunks(GoBox_SendFileChunksServer) error {
 	return status.Errorf(codes.Unimplemented, "method SendFileChunks not implemented")
-}
-func (UnimplementedGoBoxServer) SendFileChunksData(GoBox_SendFileChunksDataServer) error {
-	return status.Errorf(codes.Unimplemented, "method SendFileChunksData not implemented")
 }
 func (UnimplementedGoBoxServer) InitialSyncComplete(context.Context, *Null) (*Null, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InitialSyncComplete not implemented")
@@ -181,24 +128,6 @@ type UnsafeGoBoxServer interface {
 
 func RegisterGoBoxServer(s grpc.ServiceRegistrar, srv GoBoxServer) {
 	s.RegisterService(&GoBox_ServiceDesc, srv)
-}
-
-func _GoBox_GetLastUpdateTime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Null)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(GoBoxServer).GetLastUpdateTime(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/gobox.GoBox/GetLastUpdateTime",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GoBoxServer).GetLastUpdateTime(ctx, req.(*Null))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _GoBox_SendFileInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -224,7 +153,7 @@ func _GoBox_SendFileChunks_Handler(srv interface{}, stream grpc.ServerStream) er
 }
 
 type GoBox_SendFileChunksServer interface {
-	SendAndClose(*Null) error
+	Send(*SendFileChunksResponse) error
 	Recv() (*SendFileChunksInput, error)
 	grpc.ServerStream
 }
@@ -233,38 +162,12 @@ type goBoxSendFileChunksServer struct {
 	grpc.ServerStream
 }
 
-func (x *goBoxSendFileChunksServer) SendAndClose(m *Null) error {
+func (x *goBoxSendFileChunksServer) Send(m *SendFileChunksResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
 func (x *goBoxSendFileChunksServer) Recv() (*SendFileChunksInput, error) {
 	m := new(SendFileChunksInput)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func _GoBox_SendFileChunksData_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(GoBoxServer).SendFileChunksData(&goBoxSendFileChunksDataServer{stream})
-}
-
-type GoBox_SendFileChunksDataServer interface {
-	Send(*SendFileChunksDataRequest) error
-	Recv() (*SendFileChunksDataInput, error)
-	grpc.ServerStream
-}
-
-type goBoxSendFileChunksDataServer struct {
-	grpc.ServerStream
-}
-
-func (x *goBoxSendFileChunksDataServer) Send(m *SendFileChunksDataRequest) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *goBoxSendFileChunksDataServer) Recv() (*SendFileChunksDataInput, error) {
-	m := new(SendFileChunksDataInput)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -315,10 +218,6 @@ var GoBox_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*GoBoxServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetLastUpdateTime",
-			Handler:    _GoBox_GetLastUpdateTime_Handler,
-		},
-		{
 			MethodName: "SendFileInfo",
 			Handler:    _GoBox_SendFileInfo_Handler,
 		},
@@ -335,11 +234,6 @@ var GoBox_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "SendFileChunks",
 			Handler:       _GoBox_SendFileChunks_Handler,
-			ClientStreams: true,
-		},
-		{
-			StreamName:    "SendFileChunksData",
-			Handler:       _GoBox_SendFileChunksData_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

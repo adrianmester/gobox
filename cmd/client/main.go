@@ -66,6 +66,16 @@ func sendChunksForFile(log zerolog.Logger, baseDir string, fInfo FileInfo, clien
 		return
 	}
 	cm := ChunkMap{}
+	go func(){
+		for {
+			response, err := cl.Recv()
+			if err == io.EOF {
+				return
+			}
+			//TOOD implement
+			log.Warn().Str("chunk", response.ChunkId.String()).Msg("got request for extra chunk")
+		}
+	}()
 	for chunk := range cm.GetFileChunks(baseDir, fInfo.PathID, fInfo.Path) {
 		err = cl.Send(&proto.SendFileChunksInput{
 			ChunkId: &proto.ChunkID{
@@ -81,11 +91,6 @@ func sendChunksForFile(log zerolog.Logger, baseDir string, fInfo FileInfo, clien
 	err = cl.CloseSend()
 	if err != nil {
 		log.Error().Err(err).Msg("close send")
-	}
-	_, err = cl.CloseAndRecv()
-	if err != nil && err != io.EOF {
-		log.Error().Err(err).Msg("close SendChunkIds")
-		return
 	}
 }
 

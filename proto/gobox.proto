@@ -5,16 +5,10 @@ package gobox;
 option go_package = "github.com/adrianmester/gobox/proto";
 
 service GoBox {
-    rpc GetLastUpdateTime(Null) returns (GetLastUpdateTimeResult) {}
     rpc SendFileInfo(SendFileInfoInput) returns (SendFileInfoResponse) {}
-    rpc SendFileChunks(stream SendFileChunksInput) returns (Null) {}
-    rpc SendFileChunksData(stream SendFileChunksDataInput) returns (stream SendFileChunksDataRequest) {}
+    rpc SendFileChunks(stream SendFileChunksInput) returns (stream SendFileChunksResponse) {}
     rpc InitialSyncComplete(Null) returns (Null) {}
     rpc DeleteFile(DeleteFileInput) returns (Null) {}
-}
-
-message GetLastUpdateTimeResult {
-    int64 timestamp = 1;
 }
 
 message SendFileInfoInput {
@@ -34,18 +28,13 @@ message SendFileChunksInput {
     optional bytes data = 2;
 }
 
+message SendFileChunksResponse {
+    ChunkID chunk_id = 1;
+}
+
 message ChunkID {
     int64 file_id = 1;
     int64 chunk_number = 2;
-}
-
-message SendFileChunksDataInput {
-    ChunkID chunk_id = 1;
-    bytes data = 2;
-}
-
-message SendFileChunksDataRequest {
-    bytes chunk_id = 1;
 }
 
 message DeleteFileInput {
