@@ -24,4 +24,6 @@ test: build
 	#pytest -vv -s . -k 'test_many_small_files'
 	#pytest -vv -s . -k 'test_file_to_empty_dirs_and_back'
 
-
+test-ci: build
+	mkdir -p /tmp/dropbox/client /tmp/dropbox/server
+	pytest -q -rapP
