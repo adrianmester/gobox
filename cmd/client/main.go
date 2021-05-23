@@ -108,7 +108,6 @@ func updatePath(ctx context.Context, log zerolog.Logger, client *proto.GoBoxClie
 		wg.Add(1)
 		go func(fInfo FileInfo) {
 			defer wg.Done()
-			fmt.Println(fInfo.PathID)
 			sendChunksForFile(log, dataDir, fInfo, client)
 		}(fInfo)
 	}
