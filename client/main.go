@@ -12,7 +12,6 @@ import (
 	"io/fs"
 	"path/filepath"
 	"sync"
-	"time"
 )
 
 type FileInfo struct {
@@ -68,6 +67,7 @@ func sendChunksForFile(log zerolog.Logger, baseDir string, fInfo FileInfo, clien
 	}
 	cm := ChunkMap{}
 	for chunk := range cm.GetFileChunks(baseDir, fInfo.PathID, fInfo.Path) {
+		fmt.Println(chunk.FileID)
 		err = cl.Send(&proto.SendFileChunksInput{
 			ChunkId: &proto.ChunkID{
 				ChunkNumber: chunk.ChunkNumber,
@@ -87,6 +87,29 @@ func sendChunksForFile(log zerolog.Logger, baseDir string, fInfo FileInfo, clien
 	if err != nil && err != io.EOF {
 		log.Error().Err(err).Msg("close SendChunkIds")
 		return
+	}
+}
+
+func updatePath(ctx context.Context, log zerolog.Logger, client *proto.GoBoxClient, wg *sync.WaitGroup, dataDir string, fInfo FileInfo) {
+	log.Debug().Str("path", fInfo.Path).Int64("fileID", fInfo.PathID).Msg("sending path info")
+	response, err := (*client).SendFileInfo(ctx, &proto.SendFileInfoInput{
+		FileId:      fInfo.PathID,
+		FileName:    fInfo.Path,
+		IsDirectory: fInfo.IsDir(),
+		Size:        fInfo.Size(),
+		ModTime:     fInfo.ModTime().Unix(),
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("SendFileInfo")
+		return
+	}
+	if response.SendChunkIds && !fInfo.IsDir() {
+		wg.Add(1)
+		go func(fInfo FileInfo) {
+			defer wg.Done()
+			fmt.Println(fInfo.PathID)
+			sendChunksForFile(log, dataDir, fInfo, client)
+		}(fInfo)
 	}
 }
 
@@ -120,26 +143,7 @@ func main() {
 	wg := sync.WaitGroup{}
 
 	for fInfo := range scanDirectory(log, pm, dataDir) {
-		log.Debug().Str("path", fInfo.Path).Msg("sending file info")
-		response, err := client.SendFileInfo(ctx, &proto.SendFileInfoInput{
-			FileId:      fInfo.PathID,
-			FileName:    fInfo.Path,
-			IsDirectory: fInfo.IsDir(),
-			Size:        fInfo.Size(),
-			ModTime:     fInfo.ModTime().Unix(),
-		})
-		if err != nil {
-			log.Error().Err(err).Msg("SendFileInfo")
-			continue
-		}
-		if response.SendChunkIds && !fInfo.IsDir() {
-			wg.Add(1)
-			go func(fInfo FileInfo) {
-				defer wg.Done()
-				time.Sleep(time.Second)
-				sendChunksForFile(log, dataDir, fInfo, &client)
-			}(fInfo)
-		}
+		updatePath(ctx, log, &client, &wg, dataDir, fInfo)
 	}
 	wg.Wait()
 

@@ -16,7 +16,7 @@ type ChunkMap struct {
 	Chunks map[string]ChunkID
 }
 
-const ChunkLength = 1024
+const ChunkSize = 1024
 
 type Chunk struct {
 	ChunkID
@@ -30,14 +30,20 @@ func (c ChunkMap) GetFileChunks(baseDir string, fileID int64, path string) chan 
 		fp, err := os.Open(filepath.Join(baseDir, path))
 		if err != nil {
 			//TODO:
-			log.Panic().Err(err)
+			log.Error().Err(err).Str("path", path).Msg("failed to read file")
+			return
 		}
 		var chunkNumber int64
 		for {
-			buffer := make([]byte, ChunkLength)
+			buffer := make([]byte, ChunkSize)
 			bytesRead, err := fp.Read(buffer)
 			if err != nil {
 				if err == io.EOF {
+					// to handle empty files, send one last chunk, without data, but with the fileId at the end
+					chunk := Chunk{
+						ChunkID: ChunkID{fileID, chunkNumber},
+					}
+					result <- chunk
 					return
 				}
 				log.Error().Err(err).Str("path", path).Msg("failed to read file")
