@@ -6,18 +6,18 @@ A file sync utility, similar to `rsync`, written in go.
 ## Algorithm
 
 `gobox` uses a simplified version of the `rsync` algorithm. All files are split
-into 1KB chunks. A map of the md5 checksum of each transferred chunk is kept in
+into 1 KB chunks. A map of the md5 checksum of each transferred chunk is kept in
 memory on the client side in the form of a `map[md5sum]ChunkID`, where `ChunkID`
 is made up of a `(FileID,ChunkNumber)` tuple.
 
 The checksum of each chunk is computed before being sent, and if it has already
-been transmitted, the ChunkID of the first occurance is sent instead, without
+been transmitted, the ChunkID of the first occurrence is sent instead, without
 the contents of the chunk. The server will then read the previous chunk from disk
 and write that to the new file instead.
 
 ### Flow
 
-At startup, the client recursiveley walks the watched directory, and calls the `SendFileInfo`
+At startup, the client recursively walks the watched directory, and calls the `SendFileInfo`
 RPC method for each file and folder it encounters. This sends the file name, its
 type, size and modification time. The servers checks that against the files it
 has on disk, and if there's a mismatch, it replies with `SendChunkIds=true`.
@@ -63,13 +63,13 @@ integration tests. In addition, the tests also run on every push on
   position in the file, thus making it more efficient. For example, with the
   current implementation, adding 1 byte
   at the beginning of a large file would mean the entire file needs to be resent,
-  since none of the 1KB chunks would still match. A future version of this utility
+  since none of the 1 KB chunks would still match. A future version of this utility
   could possibly implement an algorithm more similar to the one used by `rsync`.
 
 * When transferring large files with non-repeating chunks (such as a several GB zip
-  file), the 1KB chunks are probably inefficient. Instead of having a constant
+  file), the 1 KB chunks are probably inefficient. Instead of having a constant
   chunk size, it should be able to be determined for each file individually, while
-  keeping the 1KB minimum chunk size.
+  keeping the 1 KB minimum chunk size.
   
   For example, `chunkSize = max(1024, fileSize/100)`
 
