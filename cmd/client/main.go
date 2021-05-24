@@ -7,7 +7,6 @@ import (
 	"github.com/adrianmester/gobox/proto"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -65,7 +64,8 @@ func sendChunksForFile(log zerolog.Logger, baseDir string, fInfo FileInfo, clien
 		log.Error().Err(err).Msg("create send file chunks client")
 		return
 	}
-	cm := ChunkMap{}
+	cm := NewChunkMap()
+	/*
 	go func(){
 		for {
 			response, err := cl.Recv()
@@ -73,9 +73,10 @@ func sendChunksForFile(log zerolog.Logger, baseDir string, fInfo FileInfo, clien
 				return
 			}
 			//TOOD implement
-			log.Warn().Str("chunk", response.ChunkId.String()).Msg("got request for extra chunk")
+			log.Warn().Str("chunk", fmt.Sprintf("%+v", response)).Msg("got request for extra chunk")
 		}
 	}()
+	 */
 	for chunk := range cm.GetFileChunks(baseDir, fInfo.PathID, fInfo.Path) {
 		err = cl.Send(&proto.SendFileChunksInput{
 			ChunkId: &proto.ChunkID{

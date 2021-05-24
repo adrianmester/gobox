@@ -109,6 +109,39 @@ func (g *goboxServer) SendFileInfo(_ context.Context, fileInfo *proto.SendFileIn
 	return &proto.SendFileInfoResponse{SendChunkIds: g.DoesFileNeedUpdate(fileInfo.FileId)}, nil
 }
 
+// TODO:
+type ChunkID struct {
+	FileID      int64
+	ChunkNumber int64
+}
+func (g *goboxServer) ReadChunkData(fileID, chunkNumber int64) ([]byte, error) {
+	g.lock.Lock()
+	file, ok := g.Files[fileID]
+	g.lock.Unlock()
+	if !ok {
+		return []byte{}, fmt.Errorf("chunk ID not already known: (%d,%d)", fileID, chunkNumber)
+	}
+	fullPath := filepath.Join(g.dataDir, file.Name)
+	fp, err := os.Open(fullPath)
+	if err != nil {
+		return []byte{}, fmt.Errorf("failed to open file %s", fullPath)
+	}
+	// TODO:
+	offset := chunkNumber * 1024
+	newOffset, err := fp.Seek(offset, 0)
+	if err != nil {
+		return []byte{}, fmt.Errorf("failed to seek file %s to %d: %w", fullPath, offset, err)
+	}
+	if offset != newOffset {
+		return []byte{}, fmt.Errorf("failed to seek file %s to %d. at %d instead", fullPath, offset, newOffset)
+	}
+	buf := make([]byte, 1024)
+	_, err = fp.Read(buf)
+	if err != nil {
+		return []byte{}, fmt.Errorf("failed to read file %s", fullPath)
+	}
+	return buf, nil
+}
 
 func (g *goboxServer) SendFileChunks(server proto.GoBox_SendFileChunksServer) error {
 	var (
@@ -135,7 +168,6 @@ func (g *goboxServer) SendFileChunks(server proto.GoBox_SendFileChunksServer) er
 			return nil
 		}
 		if err != nil {
-			//TODO:
 			g.log.Error().Err(err).Int64("fileID", fileID).Msg("not nil err")
 			return nil
 		}
@@ -150,13 +182,24 @@ func (g *goboxServer) SendFileChunks(server proto.GoBox_SendFileChunksServer) er
 				return fmt.Errorf("failed to create file %s: %w", file.Name, err)
 			}
 		}
-		if len(chunk.Data) > 0 {
-			_, err = fp.Write(chunk.Data)
-			if err != nil {
-				g.log.Error().Err(err).Msg("error writing file")
-			}
-			chunkCount += 1
+		if chunk.ChunkId.ChunkNumber == -1 {
+			// this was the last chunk to make sure we got the file ID, we can ignore it
+			continue
 		}
+		var data []byte
+		if len(chunk.Data) == 0 {
+			data, err = g.ReadChunkData(chunk.ChunkId.FileId, chunk.ChunkId.ChunkNumber)
+			if err != nil {
+				return fmt.Errorf("couldn't read chunk from existing file (%d,%d): %w", chunk.ChunkId.FileId, chunk.ChunkId.ChunkNumber, err)
+			}
+		} else {
+			data = chunk.Data
+		}
+		_, err = fp.Write(data)
+		if err != nil {
+			g.log.Error().Err(err).Msg("error writing file")
+		}
+		chunkCount += 1
 	}
 }
 
