@@ -1,17 +1,21 @@
 package main
 
+import "sync"
+
 /*
 pathIDMap allocates a unique numeric ID to each path
  */
 type pathIDMap struct {
 	mp        map[string]int64
 	highestID int64
+	mu		  *sync.Mutex
 }
 
-func NewPathIDMap() *pathIDMap {
+func newPathIDMap() *pathIDMap {
 	return &pathIDMap{
 		map[string]int64{},
 		0,
+		&sync.Mutex{},
 	}
 }
 
@@ -21,6 +25,8 @@ a new ID is created. Uniqueness is guaranteed by always increasing the `highestI
 of the struct.
  */
 func (p *pathIDMap) GetID(path string) int64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	fid, ok := p.mp[path]
 	if ok {
 		return fid

@@ -9,7 +9,6 @@ import (
 )
 
 func main() {
-
 	var (
 		listenAddress string
 		dataDir       string

@@ -67,18 +67,6 @@ func sendChunksForFile(log zerolog.Logger, baseDir string, fInfo FileInfo, clien
 		return
 	}
 	cm := chunks.NewChunkMap()
-	/*
-	go func(){
-		for {
-			response, err := cl.Recv()
-			if err == io.EOF {
-				return
-			}
-			//TOOD implement
-			log.Warn().Str("chunk", fmt.Sprintf("%+v", response)).Msg("got request for extra chunk")
-		}
-	}()
-	 */
 	for chunk := range cm.GetFileChunks(baseDir, fInfo.PathID, fInfo.Path) {
 		err = cl.Send(&proto.SendFileChunksInput{
 			ChunkId: &proto.ChunkID{
@@ -110,8 +98,7 @@ func updatePath(ctx context.Context, log zerolog.Logger, client *proto.GoBoxClie
 		ModTime:     fInfo.ModTime().Unix(),
 	})
 	if err != nil {
-		// TODO:
-		log.Panic().Err(err).Msg("SendFileInfo")
+		log.Error().Err(err).Msg("SendFileInfo")
 		return
 	}
 	if response.SendChunkIds && !fInfo.IsDir() {
@@ -139,7 +126,7 @@ func main() {
 
 	log := logging.GetLogger("client", debug)
 
-	pm := NewPathIDMap()
+	pm := newPathIDMap()
 
 	opts := []grpc.DialOption{grpc.WithInsecure()}
 	conn, err := grpc.Dial(serverAddress, opts...)
@@ -175,8 +162,7 @@ func main() {
 				Path: fileChanged,
 			})
 			if err != nil {
-				//TODO:
-				log.Panic().Err(err).Str("path", fileChanged).Msg("couldn't delete remote file")
+				log.Error().Err(err).Str("path", fileChanged).Msg("couldn't delete remote file")
 			}
 			continue
 		}
