@@ -26,7 +26,7 @@ func main() {
 	}
 	log := logging.GetLogger("server", debug)
 
-	lis, err := net.Listen("tcp", "localhost:5555")
+	lis, err := net.Listen("tcp", listenAddress)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to start server")
 	}

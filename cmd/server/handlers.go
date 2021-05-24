@@ -39,7 +39,7 @@ func NewGoBoxServer(log *zerolog.Logger, dataDir string) *goboxServer {
 	}
 }
 
-func (g *goboxServer) DoesFileNeedUpdate(fileID int64) bool {
+func (g *goboxServer) doesFileNeedUpdate(fileID int64) bool {
 	g.lock.Lock()
 	file := g.Files[fileID]
 	g.lock.Unlock()
@@ -107,7 +107,7 @@ func (g *goboxServer) SendFileInfo(_ context.Context, fileInfo *proto.SendFileIn
 		}
 	}
 
-	return &proto.SendFileInfoResponse{SendChunkIds: g.DoesFileNeedUpdate(fileInfo.FileId)}, nil
+	return &proto.SendFileInfoResponse{SendChunkIds: g.doesFileNeedUpdate(fileInfo.FileId)}, nil
 }
 
 func (g *goboxServer) ReadChunkData(fileID, chunkNumber int64) ([]byte, error) {
@@ -224,6 +224,7 @@ func (g *goboxServer) InitialSyncComplete(_ context.Context, _ *proto.Null) (*pr
 	g.log.Info().Msg("Initial Sync Complete")
 	return &proto.Null{}, nil
 }
+
 func (g *goboxServer) DeleteFile(_ context.Context, in *proto.DeleteFileInput) (*proto.Null, error) {
 	err := os.RemoveAll(filepath.Join(g.dataDir, in.Path))
 	return &proto.Null{}, err

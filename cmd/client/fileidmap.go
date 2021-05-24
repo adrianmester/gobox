@@ -4,11 +4,11 @@ import "sync"
 
 /*
 pathIDMap allocates a unique numeric ID to each path
- */
+*/
 type pathIDMap struct {
 	mp        map[string]int64
 	highestID int64
-	mu		  *sync.Mutex
+	mu        *sync.Mutex
 }
 
 func newPathIDMap() *pathIDMap {
@@ -23,7 +23,7 @@ func newPathIDMap() *pathIDMap {
 GetID returns the numeric ID associated with the give path. If it doesn't exist
 a new ID is created. Uniqueness is guaranteed by always increasing the `highestID` member
 of the struct.
- */
+*/
 func (p *pathIDMap) GetID(path string) int64 {
 	p.mu.Lock()
 	defer p.mu.Unlock()

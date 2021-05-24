@@ -7,6 +7,9 @@ import (
 	"os"
 )
 
+/*
+GetLogger returns a console zerolog writer with the given name
+*/
 func GetLogger(name string, debug bool) zerolog.Logger {
 	output := zerolog.ConsoleWriter{Out: os.Stdout}
 	output.FormatMessage = func(i interface{}) string {

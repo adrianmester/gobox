@@ -27,6 +27,10 @@ func listDirectories(path string) ([]string, error) {
 	return result, nil
 }
 
+/*
+watch will recursively monitor the provided path using the fsnotify library and
+whenever an event is seen, the path of the file is pushed through the returned channel
+*/
 func watch(log zerolog.Logger, ctx context.Context, rootPath string) (chan string, error) {
 	result := make(chan string)
 
