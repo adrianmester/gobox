@@ -46,6 +46,13 @@ chosen because it can easily handle binary data, and asynchronous streams.
 
 The protobuf RPC methods are defined in [`proto/gobox.proto`](./proto/gobox.proto).
 
+## Testing
+
+The only dependencies required to run the test are `pytest` and the go compiler.
+With those installed, running `make test` from the root directory should run the
+integration tests. In addition, the tests also run on every push on
+[github actions](https://github.com/adrianmester/gobox/actions).
+
 ## Future improvements
 
 * A production-ready version of this utility would use mTLS to authenticate the
