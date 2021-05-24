@@ -1,4 +1,4 @@
-package main
+package chunks
 
 import (
 	"crypto/md5"
@@ -9,11 +9,6 @@ import (
 	"path/filepath"
 	"sync"
 )
-
-type ChunkID struct {
-	FileID      int64
-	ChunkNumber int64
-}
 
 type ChunkMap struct {
 	Chunks map[string]ChunkID
@@ -47,7 +42,7 @@ type Chunk struct {
 	Data []byte
 }
 
-func (c ChunkMap) GetFileChunks(baseDir string, fileID int64, path string) chan Chunk {
+func (cm ChunkMap) GetFileChunks(baseDir string, fileID int64, path string) chan Chunk {
 	result := make(chan Chunk)
 	go func() {
 		defer close(result)
@@ -74,7 +69,7 @@ func (c ChunkMap) GetFileChunks(baseDir string, fileID int64, path string) chan 
 			}
 
 			chunkID := ChunkID{fileID, chunkNumber}
-			chunkID, alreadyExists := c.AddChunk(buffer, chunkID)
+			chunkID, alreadyExists := cm.AddChunk(buffer, chunkID)
 
 			chunk := Chunk{
 				ChunkID: chunkID,

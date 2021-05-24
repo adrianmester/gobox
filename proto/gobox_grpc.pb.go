@@ -52,7 +52,7 @@ func (c *goBoxClient) SendFileChunks(ctx context.Context, opts ...grpc.CallOptio
 
 type GoBox_SendFileChunksClient interface {
 	Send(*SendFileChunksInput) error
-	Recv() (*SendFileChunksResponse, error)
+	CloseAndRecv() (*Null, error)
 	grpc.ClientStream
 }
 
@@ -64,8 +64,11 @@ func (x *goBoxSendFileChunksClient) Send(m *SendFileChunksInput) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *goBoxSendFileChunksClient) Recv() (*SendFileChunksResponse, error) {
-	m := new(SendFileChunksResponse)
+func (x *goBoxSendFileChunksClient) CloseAndRecv() (*Null, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(Null)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -153,7 +156,7 @@ func _GoBox_SendFileChunks_Handler(srv interface{}, stream grpc.ServerStream) er
 }
 
 type GoBox_SendFileChunksServer interface {
-	Send(*SendFileChunksResponse) error
+	SendAndClose(*Null) error
 	Recv() (*SendFileChunksInput, error)
 	grpc.ServerStream
 }
@@ -162,7 +165,7 @@ type goBoxSendFileChunksServer struct {
 	grpc.ServerStream
 }
 
-func (x *goBoxSendFileChunksServer) Send(m *SendFileChunksResponse) error {
+func (x *goBoxSendFileChunksServer) SendAndClose(m *Null) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -234,7 +237,6 @@ var GoBox_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "SendFileChunks",
 			Handler:       _GoBox_SendFileChunks_Handler,
-			ServerStreams: true,
 			ClientStreams: true,
 		},
 	},

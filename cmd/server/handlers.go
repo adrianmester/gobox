@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/adrianmester/gobox/pkgs/chunks"
 	"github.com/adrianmester/gobox/proto"
 	"github.com/rs/zerolog"
 	"io"
@@ -109,11 +110,6 @@ func (g *goboxServer) SendFileInfo(_ context.Context, fileInfo *proto.SendFileIn
 	return &proto.SendFileInfoResponse{SendChunkIds: g.DoesFileNeedUpdate(fileInfo.FileId)}, nil
 }
 
-// TODO:
-type ChunkID struct {
-	FileID      int64
-	ChunkNumber int64
-}
 func (g *goboxServer) ReadChunkData(fileID, chunkNumber int64) ([]byte, error) {
 	g.lock.Lock()
 	file, ok := g.Files[fileID]
@@ -126,8 +122,7 @@ func (g *goboxServer) ReadChunkData(fileID, chunkNumber int64) ([]byte, error) {
 	if err != nil {
 		return []byte{}, fmt.Errorf("failed to open file %s", fullPath)
 	}
-	// TODO:
-	offset := chunkNumber * 1024
+	offset := chunkNumber * chunks.ChunkSize
 	newOffset, err := fp.Seek(offset, 0)
 	if err != nil {
 		return []byte{}, fmt.Errorf("failed to seek file %s to %d: %w", fullPath, offset, err)
@@ -135,7 +130,7 @@ func (g *goboxServer) ReadChunkData(fileID, chunkNumber int64) ([]byte, error) {
 	if offset != newOffset {
 		return []byte{}, fmt.Errorf("failed to seek file %s to %d. at %d instead", fullPath, offset, newOffset)
 	}
-	buf := make([]byte, 1024)
+	buf := make([]byte, chunks.ChunkSize)
 	_, err = fp.Read(buf)
 	if err != nil {
 		return []byte{}, fmt.Errorf("failed to read file %s", fullPath)
@@ -152,6 +147,7 @@ func (g *goboxServer) SendFileChunks(server proto.GoBox_SendFileChunksServer) er
 	)
 	defer func() {
 		g.log.Debug().Str("path", file.Name).Int64("chunks", chunkCount).Msg("wrote file")
+		_ = server.SendAndClose(&proto.Null{})
 		err := os.Chtimes(filepath.Join(g.dataDir, file.Name), file.ModTime, file.ModTime)
 		if err != nil {
 			g.log.Error().Err(err).Str("path", file.Name).Msg("failed to update mtime")

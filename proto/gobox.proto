@@ -6,7 +6,7 @@ option go_package = "github.com/adrianmester/gobox/proto";
 
 service GoBox {
     rpc SendFileInfo(SendFileInfoInput) returns (SendFileInfoResponse) {}
-    rpc SendFileChunks(stream SendFileChunksInput) returns (stream SendFileChunksResponse) {}
+    rpc SendFileChunks(stream SendFileChunksInput) returns (Null) {}
     rpc InitialSyncComplete(Null) returns (Null) {}
     rpc DeleteFile(DeleteFileInput) returns (Null) {}
 }
@@ -26,10 +26,6 @@ message SendFileInfoResponse {
 message SendFileChunksInput {
     ChunkID chunk_id = 1;
     optional bytes data = 2;
-}
-
-message SendFileChunksResponse {
-    ChunkID chunk_id = 1;
 }
 
 message ChunkID {

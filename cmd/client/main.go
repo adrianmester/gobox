@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"flag"
+	"github.com/adrianmester/gobox/pkgs/chunks"
 	"github.com/adrianmester/gobox/pkgs/logging"
 	"github.com/adrianmester/gobox/proto"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -64,7 +66,7 @@ func sendChunksForFile(log zerolog.Logger, baseDir string, fInfo FileInfo, clien
 		log.Error().Err(err).Msg("create send file chunks client")
 		return
 	}
-	cm := NewChunkMap()
+	cm := chunks.NewChunkMap()
 	/*
 	go func(){
 		for {
@@ -85,6 +87,9 @@ func sendChunksForFile(log zerolog.Logger, baseDir string, fInfo FileInfo, clien
 			},
 			Data: chunk.Data,
 		})
+		if err == io.EOF {
+			break
+		}
 		if err != nil {
 			log.Error().Err(err).Msg("failed to send chunk")
 		}
